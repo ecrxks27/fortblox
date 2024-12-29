@@ -1,1 +1,95 @@
-print("2")
+while true do
+-- Lock-On and ESP Script with FOV Restriction
+-- Use this in a safe/test environment.
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = workspace.CurrentCamera
+local Target = nil
+local FOV = 50 -- FOV in degrees
+
+-- ESP Function
+local function addESP(player)
+    if player ~= LocalPlayer and player.Character then
+        local highlight = Instance.new("Highlight")
+        highlight.Adornee = player.Character
+        highlight.FillColor = Color3.fromRGB(255, 0, 0)
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
+        highlight.Parent = player.Character
+    end
+end
+
+-- Remove ESP when player leaves
+local function removeESP(player)
+    if player.Character and player.Character:FindFirstChild("Highlight") then
+        player.Character.Highlight:Destroy()
+    end
+end
+
+-- Check if a player is within the FOV
+local function isWithinFOV(target)
+    if not target.Character or not target.Character:FindFirstChild("Head") then
+        return false
+    end
+
+    local targetPosition = target.Character.Head.Position
+    local screenPoint = Camera:WorldToViewportPoint(targetPosition)
+
+    if screenPoint.Z > 0 then -- Ensure the target is in front of the camera
+        local directionToTarget = (targetPosition - Camera.CFrame.Position).Unit
+        local cameraDirection = Camera.CFrame.LookVector
+
+        local angle = math.acos(cameraDirection:Dot(directionToTarget))
+        return math.deg(angle) <= (FOV / 2)
+    end
+
+    return false
+end
+
+-- Lock-On Function
+local function getClosestPlayerWithinFOV()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and isWithinFOV(player) then
+            if player.Character and player.Character:FindFirstChild("Head") then
+                local distance = (player.Character.Head.Position - LocalPlayer.Character.Head.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+Mouse.KeyDown:Connect(function(key)
+    if key == "q" then -- Press 'Q' to lock on to the closest player within FOV
+        Target = getClosestPlayerWithinFOV()
+        if Target and Target.Character and Target.Character:FindFirstChild("Head") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(LocalPlayer.Character.HumanoidRootPart.Position, Target.Character.Head.Position)
+        end
+    end
+end)
+
+-- Add ESP to new players
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        addESP(player)
+    end)
+end)
+
+-- Clean up when players leave
+Players.PlayerRemoving:Connect(removeESP)
+
+-- Add ESP to existing players
+for _, player in ipairs(Players:GetPlayers()) do
+    if player.Character then
+        addESP(player)
+    end
+end
